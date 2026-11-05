@@ -21,7 +21,7 @@ def _infer_variable_type(expression: str) -> str:
     """Infer the FeatureScript VariableType from an expression.
 
     Args:
-        expression: Variable expression (e.g., '0.75 in', '45 deg', '3.14')
+        expression: Variable expression (e.g., '20 mm', '45 deg', '3.14')
 
     Returns:
         VariableType string (LENGTH, ANGLE, or ANY)
@@ -120,7 +120,7 @@ class VariableManager:
             workspace_id: Workspace ID
             element_id: Variable Studio element ID
             name: Variable name
-            expression: Variable expression (e.g., "0.75 in")
+            expression: Variable expression (e.g., "20 mm")
             description: Optional variable description
 
         Returns:

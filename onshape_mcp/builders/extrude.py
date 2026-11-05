@@ -1,5 +1,6 @@
 """Extrude feature builder for Onshape."""
 
+from ..units import length_expr
 from typing import Any, Dict, Optional
 from enum import Enum
 
@@ -29,7 +30,7 @@ class ExtrudeBuilder:
         Args:
             name: Name of the extrude feature
             sketch_feature_id: ID of the sketch to extrude
-            depth: Extrude depth in inches
+            depth: Extrude depth in the configured length unit (default mm)
             operation_type: Type of extrude operation
             opposite_direction: Extrude away from the sketch plane's default
                 normal direction instead of along it
@@ -45,7 +46,7 @@ class ExtrudeBuilder:
         """Set extrude depth.
 
         Args:
-            depth: Depth in inches
+            depth: Depth in the configured length unit (default mm)
             variable_name: Optional variable name to reference
 
         Returns:
@@ -88,7 +89,9 @@ class ExtrudeBuilder:
         if not self.sketch_feature_id:
             raise ValueError("Sketch feature ID must be set before building extrude")
 
-        depth_expression = f"#{self.depth_variable}" if self.depth_variable else f"{self.depth} in"
+        depth_expression = (
+            f"#{self.depth_variable}" if self.depth_variable else length_expr(self.depth)
+        )
 
         return {
             "btType": "BTFeatureDefinitionCall-1406",

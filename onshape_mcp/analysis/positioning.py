@@ -5,9 +5,9 @@ from typing import Any, Dict, List, Tuple
 
 from loguru import logger
 
-from .interference import BoundingBox, METERS_TO_INCHES, get_world_aabb
+from ..units import from_m, get_length_unit, to_m
+from .interference import BoundingBox, get_world_aabb, instance_version
 
-INCHES_TO_METERS = 0.0254
 
 FACE_NAMES = {"front", "back", "left", "right", "top", "bottom"}
 
@@ -18,18 +18,18 @@ class InstancePositionInfo:
 
     name: str
     instance_id: str
-    position_x_inches: float
-    position_y_inches: float
-    position_z_inches: float
-    size_x_inches: float
-    size_y_inches: float
-    size_z_inches: float
-    world_low_x_inches: float
-    world_low_y_inches: float
-    world_low_z_inches: float
-    world_high_x_inches: float
-    world_high_y_inches: float
-    world_high_z_inches: float
+    position_x: float
+    position_y: float
+    position_z: float
+    size_x: float
+    size_y: float
+    size_z: float
+    world_low_x: float
+    world_low_y: float
+    world_low_z: float
+    world_high_x: float
+    world_high_y: float
+    world_high_z: float
 
 
 def extract_occurrence_transforms(
@@ -71,15 +71,13 @@ def get_position_from_transform(
     return (transform[3], transform[7], transform[11])
 
 
-def build_absolute_translation_matrix(
-    x_inches: float, y_inches: float, z_inches: float
-) -> List[float]:
+def build_absolute_translation_matrix(x: float, y: float, z: float) -> List[float]:
     """Build a 4x4 identity-rotation matrix with given translation.
 
     Args:
-        x_inches: X position in inches
-        y_inches: Y position in inches
-        z_inches: Z position in inches
+        x: X position in inches
+        y: Y position in inches
+        z: Z position in inches
 
     Returns:
         16-element row-major 4x4 matrix
@@ -88,15 +86,15 @@ def build_absolute_translation_matrix(
         1.0,
         0.0,
         0.0,
-        x_inches * INCHES_TO_METERS,
+        to_m(x),
         0.0,
         1.0,
         0.0,
-        y_inches * INCHES_TO_METERS,
+        to_m(y),
         0.0,
         0.0,
         1.0,
-        z_inches * INCHES_TO_METERS,
+        to_m(z),
         0.0,
         0.0,
         0.0,
@@ -172,20 +170,20 @@ def format_positions_report(positions: List[InstancePositionInfo]) -> str:
     for p in positions:
         lines.append(f"**{p.name}** (ID: {p.instance_id})")
         lines.append(
-            f'  Position: X={p.position_x_inches:.3f}", '
-            f'Y={p.position_y_inches:.3f}", '
-            f'Z={p.position_z_inches:.3f}"'
+            f"  Position: X={p.position_x:.3f} {get_length_unit()}, "
+            f"Y={p.position_y:.3f} {get_length_unit()}, "
+            f"Z={p.position_z:.3f} {get_length_unit()}"
         )
         lines.append(
-            f'  Size: {p.size_x_inches:.3f}" W x '
-            f'{p.size_y_inches:.3f}" D x '
-            f'{p.size_z_inches:.3f}" H'
+            f"  Size: {p.size_x:.3f} {get_length_unit()} W x "
+            f"{p.size_y:.3f} {get_length_unit()} D x "
+            f"{p.size_z:.3f} {get_length_unit()} H"
         )
         lines.append(
             f"  World bounds: "
-            f'X=[{p.world_low_x_inches:.3f}", {p.world_high_x_inches:.3f}"], '
-            f'Y=[{p.world_low_y_inches:.3f}", {p.world_high_y_inches:.3f}"], '
-            f'Z=[{p.world_low_z_inches:.3f}", {p.world_high_z_inches:.3f}"]'
+            f"X=[{p.world_low_x:.3f} {get_length_unit()}, {p.world_high_x:.3f} {get_length_unit()}], "
+            f"Y=[{p.world_low_y:.3f} {get_length_unit()}, {p.world_high_y:.3f} {get_length_unit()}], "
+            f"Z=[{p.world_low_z:.3f} {get_length_unit()}, {p.world_high_z:.3f} {get_length_unit()}]"
         )
         lines.append("")
 
@@ -229,11 +227,16 @@ async def get_assembly_positions(
         inst_part_id = inst.get("partId")
         if not inst_elem_id or not inst_part_id:
             continue
-        cache_key = (inst_doc_id, inst_elem_id, inst_part_id)
+        cache_key = (inst_doc_id, inst_elem_id, inst_part_id, inst.get("configuration"))
         if cache_key not in bbox_cache:
             try:
                 bbox_data = await partstudio_manager.get_part_bounding_box(
-                    inst_doc_id, workspace_id, inst_elem_id, inst_part_id
+                    inst_doc_id,
+                    workspace_id,
+                    inst_elem_id,
+                    inst_part_id,
+                    version_id=instance_version(inst, document_id),
+                    configuration=inst.get("configuration"),
                 )
                 bbox_cache[cache_key] = BoundingBox.from_api_response(bbox_data)
             except Exception as e:
@@ -247,7 +250,7 @@ async def get_assembly_positions(
         inst_doc_id = inst.get("documentId", document_id)
         inst_elem_id = inst.get("elementId")
         inst_part_id = inst.get("partId")
-        cache_key = (inst_doc_id, inst_elem_id, inst_part_id)
+        cache_key = (inst_doc_id, inst_elem_id, inst_part_id, inst.get("configuration"))
         if cache_key not in bbox_cache:
             continue
 
@@ -260,18 +263,18 @@ async def get_assembly_positions(
             InstancePositionInfo(
                 name=inst.get("name", "Unnamed"),
                 instance_id=inst["id"],
-                position_x_inches=pos_meters[0] * METERS_TO_INCHES,
-                position_y_inches=pos_meters[1] * METERS_TO_INCHES,
-                position_z_inches=pos_meters[2] * METERS_TO_INCHES,
-                size_x_inches=(world_bbox.high_x - world_bbox.low_x) * METERS_TO_INCHES,
-                size_y_inches=(world_bbox.high_y - world_bbox.low_y) * METERS_TO_INCHES,
-                size_z_inches=(world_bbox.high_z - world_bbox.low_z) * METERS_TO_INCHES,
-                world_low_x_inches=world_bbox.low_x * METERS_TO_INCHES,
-                world_low_y_inches=world_bbox.low_y * METERS_TO_INCHES,
-                world_low_z_inches=world_bbox.low_z * METERS_TO_INCHES,
-                world_high_x_inches=world_bbox.high_x * METERS_TO_INCHES,
-                world_high_y_inches=world_bbox.high_y * METERS_TO_INCHES,
-                world_high_z_inches=world_bbox.high_z * METERS_TO_INCHES,
+                position_x=from_m(pos_meters[0]),
+                position_y=from_m(pos_meters[1]),
+                position_z=from_m(pos_meters[2]),
+                size_x=from_m((world_bbox.high_x - world_bbox.low_x)),
+                size_y=from_m((world_bbox.high_y - world_bbox.low_y)),
+                size_z=from_m((world_bbox.high_z - world_bbox.low_z)),
+                world_low_x=from_m(world_bbox.low_x),
+                world_low_y=from_m(world_bbox.low_y),
+                world_low_z=from_m(world_bbox.low_z),
+                world_high_x=from_m(world_bbox.high_x),
+                world_high_y=from_m(world_bbox.high_y),
+                world_high_z=from_m(world_bbox.high_z),
             )
         )
 
@@ -284,9 +287,9 @@ async def set_absolute_position(
     workspace_id: str,
     element_id: str,
     instance_id: str,
-    x_inches: float,
-    y_inches: float,
-    z_inches: float,
+    x: float,
+    y: float,
+    z: float,
 ) -> str:
     """Set an instance to an absolute position.
 
@@ -296,21 +299,21 @@ async def set_absolute_position(
         workspace_id: Workspace ID
         element_id: Assembly element ID
         instance_id: Instance to position
-        x_inches: Absolute X position in inches
-        y_inches: Absolute Y position in inches
-        z_inches: Absolute Z position in inches
+        x: Absolute X position in inches
+        y: Absolute Y position in inches
+        z: Absolute Z position in inches
 
     Returns:
         Confirmation message string
     """
-    transform = build_absolute_translation_matrix(x_inches, y_inches, z_inches)
+    transform = build_absolute_translation_matrix(x, y, z)
     occurrences = [{"path": [instance_id], "transform": transform}]
     await assembly_manager.transform_occurrences(
         document_id, workspace_id, element_id, occurrences, is_relative=False
     )
     return (
         f"Set instance {instance_id} to absolute position: "
-        f'X={x_inches:.3f}", Y={y_inches:.3f}", Z={z_inches:.3f}"'
+        f"X={x:.3f} {get_length_unit()}, Y={y:.3f} {get_length_unit()}, Z={z:.3f} {get_length_unit()}"
     )
 
 
@@ -380,12 +383,22 @@ async def align_to_face(
     t_doc, t_elem, t_part = _bbox_params(target_inst)
 
     source_bbox_data = await partstudio_manager.get_part_bounding_box(
-        s_doc, workspace_id, s_elem, s_part
+        s_doc,
+        workspace_id,
+        s_elem,
+        s_part,
+        version_id=instance_version(source_inst, document_id),
+        configuration=source_inst.get("configuration"),
     )
     source_local_bbox = BoundingBox.from_api_response(source_bbox_data)
 
     target_bbox_data = await partstudio_manager.get_part_bounding_box(
-        t_doc, workspace_id, t_elem, t_part
+        t_doc,
+        workspace_id,
+        t_elem,
+        t_part,
+        version_id=instance_version(target_inst, document_id),
+        configuration=target_inst.get("configuration"),
     )
     target_local_bbox = BoundingBox.from_api_response(target_bbox_data)
 
@@ -401,9 +414,9 @@ async def align_to_face(
         source_local_bbox, source_current_pos, target_world_aabb, face
     )
 
-    new_x_in = new_pos_meters[0] * METERS_TO_INCHES
-    new_y_in = new_pos_meters[1] * METERS_TO_INCHES
-    new_z_in = new_pos_meters[2] * METERS_TO_INCHES
+    new_x_in = from_m(new_pos_meters[0])
+    new_y_in = from_m(new_pos_meters[1])
+    new_z_in = from_m(new_pos_meters[2])
 
     # Apply absolute transform
     transform = build_absolute_translation_matrix(new_x_in, new_y_in, new_z_in)
@@ -415,5 +428,5 @@ async def align_to_face(
     return (
         f"Aligned '{source_inst.get('name', source_instance_id)}' to "
         f"'{face}' face of '{target_inst.get('name', target_instance_id)}'.\n"
-        f'New position: X={new_x_in:.3f}", Y={new_y_in:.3f}", Z={new_z_in:.3f}"'
+        f"New position: X={new_x_in:.3f} {get_length_unit()}, Y={new_y_in:.3f} {get_length_unit()}, Z={new_z_in:.3f} {get_length_unit()}"
     )

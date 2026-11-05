@@ -1,5 +1,6 @@
 """Fillet feature builder for Onshape."""
 
+from ..units import length_expr
 from typing import Any, Dict, List, Optional
 
 
@@ -15,7 +16,7 @@ class FilletBuilder:
 
         Args:
             name: Name of the fillet feature
-            radius: Fillet radius in inches
+            radius: Fillet radius in the configured length unit (default mm)
         """
         self.name = name
         self.radius = radius
@@ -26,7 +27,7 @@ class FilletBuilder:
         """Set fillet radius.
 
         Args:
-            radius: Radius in inches
+            radius: Radius in the configured length unit (default mm)
             variable_name: Optional variable name to reference
 
         Returns:
@@ -61,7 +62,7 @@ class FilletBuilder:
             raise ValueError("At least one edge must be added")
 
         radius_expression = (
-            f"#{self.radius_variable}" if self.radius_variable else f"{self.radius} in"
+            f"#{self.radius_variable}" if self.radius_variable else length_expr(self.radius)
         )
 
         return {

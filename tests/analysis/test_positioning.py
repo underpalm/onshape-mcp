@@ -231,27 +231,27 @@ class TestFormatPositionsReport:
         pos = InstancePositionInfo(
             name="Test Part",
             instance_id="id1",
-            position_x_inches=10.0,
-            position_y_inches=-5.0,
-            position_z_inches=0.0,
-            size_x_inches=2.0,
-            size_y_inches=3.0,
-            size_z_inches=4.0,
-            world_low_x_inches=9.0,
-            world_low_y_inches=-6.5,
-            world_low_z_inches=-2.0,
-            world_high_x_inches=11.0,
-            world_high_y_inches=-3.5,
-            world_high_z_inches=2.0,
+            position_x=10.0,
+            position_y=-5.0,
+            position_z=0.0,
+            size_x=2.0,
+            size_y=3.0,
+            size_z=4.0,
+            world_low_x=9.0,
+            world_low_y=-6.5,
+            world_low_z=-2.0,
+            world_high_x=11.0,
+            world_high_y=-3.5,
+            world_high_z=2.0,
         )
         result = format_positions_report([pos])
         assert "Test Part" in result
         assert "id1" in result
         assert "10.000" in result
         assert "-5.000" in result
-        assert '2.000" W' in result
-        assert '3.000" D' in result
-        assert '4.000" H' in result
+        assert "2.000 in W" in result
+        assert "3.000 in D" in result
+        assert "4.000 in H" in result
 
     def test_multiple_positions(self):
         positions = [

@@ -1,5 +1,6 @@
 """Chamfer feature builder for Onshape."""
 
+from ..units import length_expr
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -25,7 +26,7 @@ class ChamferBuilder:
 
         Args:
             name: Name of the chamfer feature
-            distance: Chamfer distance in inches
+            distance: Chamfer distance in the configured length unit (default mm)
             chamfer_type: Type of chamfer geometry
         """
         self.name = name
@@ -40,7 +41,7 @@ class ChamferBuilder:
         """Set chamfer distance.
 
         Args:
-            distance: Distance in inches
+            distance: Distance in the configured length unit (default mm)
             variable_name: Optional variable name to reference
 
         Returns:
@@ -75,7 +76,7 @@ class ChamferBuilder:
             raise ValueError("At least one edge must be added")
 
         distance_expression = (
-            f"#{self.distance_variable}" if self.distance_variable else f"{self.distance} in"
+            f"#{self.distance_variable}" if self.distance_variable else length_expr(self.distance)
         )
 
         return {

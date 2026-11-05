@@ -1,5 +1,6 @@
 """Mate and mate connector builders for Onshape assemblies."""
 
+from ..units import to_m
 import math
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -42,6 +43,8 @@ class MateConnectorBuilder:
         self.name = name
         self.face_id = face_id
         self.occurrence_path = occurrence_path
+        # CENTROID suits planar faces; cylinders/cones need a point on the axis (MID_AXIS_POINT)
+        self.inference_type = "CENTROID"
         self._flip_primary = False
         self._secondary_axis_type = "PLUS_X"
         self._transform_enabled = False
@@ -106,14 +109,14 @@ class MateConnectorBuilder:
         return self
 
     def set_translation(self, x: float, y: float, z: float) -> "MateConnectorBuilder":
-        """Set offset from face center in inches.
+        """Set offset from face center in the configured length unit (default mm).
 
         Enables the transform parameters on the mate connector.
 
         Args:
-            x: X offset in inches
-            y: Y offset in inches
-            z: Z offset in inches
+            x: X offset in the configured length unit (default mm)
+            y: Y offset in the configured length unit (default mm)
+            z: Z offset in the configured length unit (default mm)
 
         Returns:
             Self for chaining
@@ -166,7 +169,7 @@ class MateConnectorBuilder:
                 "queries": [
                     {
                         "btType": "BTMInferenceQueryWithOccurrence-1083",
-                        "inferenceType": "CENTROID",
+                        "inferenceType": self.inference_type,
                         "path": self.occurrence_path or [],
                         "deterministicIds": [self.face_id] if self.face_id else [],
                     }
@@ -194,9 +197,9 @@ class MateConnectorBuilder:
             )
 
         if self._transform_enabled:
-            tx_m = self._translation_x * 0.0254
-            ty_m = self._translation_y * 0.0254
-            tz_m = self._translation_z * 0.0254
+            tx_m = to_m(self._translation_x)
+            ty_m = to_m(self._translation_y)
+            tz_m = to_m(self._translation_z)
             parameters.append(
                 {
                     "btType": "BTMParameterBoolean-144",
@@ -302,7 +305,7 @@ class MateBuilder:
     def set_limits(self, min_value: float, max_value: float) -> "MateBuilder":
         """Set motion limits for the mate.
 
-        For SLIDER/CYLINDRICAL mates: values are in inches (converted to meters).
+        For SLIDER/CYLINDRICAL mates: values are in the configured length unit (default mm) (converted to meters).
         For REVOLUTE mates: values are in degrees (converted to radians).
 
         Args:
@@ -367,8 +370,8 @@ class MateBuilder:
                 }
             )
             if self.mate_type in (MateType.SLIDER, MateType.CYLINDRICAL):
-                min_m = self.min_limit * 0.0254
-                max_m = self.max_limit * 0.0254
+                min_m = to_m(self.min_limit)
+                max_m = to_m(self.max_limit)
                 params.append(
                     {
                         "btType": "BTMParameterNullableQuantity-807",
@@ -422,14 +425,14 @@ def build_transform_matrix(
 ) -> List[float]:
     """Build a 4x4 transformation matrix (row-major, 16 elements).
 
-    Translation values are in inches (converted to meters).
+    Translation values are in the configured length unit (default mm) (converted to meters).
     Rotation values are in degrees (converted to radians).
     Rotation order is Rz * Ry * Rx.
 
     Args:
-        tx: X translation in inches
-        ty: Y translation in inches
-        tz: Z translation in inches
+        tx: X translation in the configured length unit (default mm)
+        ty: Y translation in the configured length unit (default mm)
+        tz: Z translation in the configured length unit (default mm)
         rx: X rotation in degrees
         ry: Y rotation in degrees
         rz: Z rotation in degrees
@@ -438,9 +441,9 @@ def build_transform_matrix(
         16-element list representing the 4x4 transformation matrix
     """
     # Convert inches to meters
-    tx_m = tx * 0.0254
-    ty_m = ty * 0.0254
-    tz_m = tz * 0.0254
+    tx_m = to_m(tx)
+    ty_m = to_m(ty)
+    tz_m = to_m(tz)
 
     # Convert degrees to radians
     rx_r = math.radians(rx)

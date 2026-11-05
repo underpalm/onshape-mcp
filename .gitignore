@@ -37,6 +37,7 @@ ENV/
 .env
 .env.local
 .env.*
+!.env.example
 
 # Credentials
 credentials.json
@@ -83,3 +84,6 @@ logs/security/
 
 # Coverage output (also written by pytest-cov)
 coverage.json
+
+# Third-party / local simulation data (e.g. onshape-to-robot output from other projects)
+simulation/

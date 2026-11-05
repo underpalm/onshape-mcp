@@ -1,6 +1,8 @@
 """Part Studio management for Onshape."""
 
-from typing import Any, Dict, List
+from urllib.parse import quote
+
+from typing import Optional, Any, Dict, List
 from .client import OnshapeClient
 
 
@@ -113,7 +115,13 @@ class PartStudioManager:
         return response
 
     async def get_part_bounding_box(
-        self, document_id: str, workspace_id: str, element_id: str, part_id: str
+        self,
+        document_id: str,
+        workspace_id: str,
+        element_id: str,
+        part_id: str,
+        version_id: Optional[str] = None,
+        configuration: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get the bounding box for a specific part.
 
@@ -126,10 +134,10 @@ class PartStudioManager:
         Returns:
             Bounding box with lowX/Y/Z and highX/Y/Z in meters
         """
-        path = (
-            f"/api/v6/parts/d/{document_id}/w/{workspace_id}"
-            f"/e/{element_id}/partid/{part_id}/boundingboxes"
-        )
+        wvm = f"v/{version_id}" if version_id else f"w/{workspace_id}"
+        path = f"/api/v6/parts/d/{document_id}/{wvm}/e/{element_id}/partid/{quote(part_id, safe='')}/boundingboxes"
+        if configuration and configuration != "default":
+            return await self.client.get(path, params={"configuration": configuration})
         return await self.client.get(path)
 
     async def create_part_studio(

@@ -5,7 +5,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from loguru import logger
 
-METERS_TO_INCHES = 1.0 / 0.0254
+from ..units import from_m, get_length_unit, volume_unit
+
+
+def instance_version(inst: Dict[str, Any], document_id: str) -> Optional[str]:
+    """Version to read an instance's geometry from (instances of other documents)."""
+    if inst.get("documentId", document_id) != document_id:
+        return inst.get("documentVersion")
+    return None
 
 
 @dataclass
@@ -40,10 +47,10 @@ class OverlapInfo:
     instance_a_id: str
     instance_b_name: str
     instance_b_id: str
-    overlap_x_inches: float
-    overlap_y_inches: float
-    overlap_z_inches: float
-    overlap_volume_cubic_inches: float
+    overlap_x: float
+    overlap_y: float
+    overlap_z: float
+    overlap_volume: float
 
 
 @dataclass
@@ -197,11 +204,16 @@ async def check_assembly_interference(
         if not inst_elem_id or not inst_part_id:
             continue
 
-        cache_key = (inst_doc_id, inst_elem_id, inst_part_id)
+        cache_key = (inst_doc_id, inst_elem_id, inst_part_id, inst.get("configuration"))
         if cache_key not in bbox_cache:
             try:
                 bbox_data = await partstudio_manager.get_part_bounding_box(
-                    inst_doc_id, workspace_id, inst_elem_id, inst_part_id
+                    inst_doc_id,
+                    workspace_id,
+                    inst_elem_id,
+                    inst_part_id,
+                    version_id=instance_version(inst, document_id),
+                    configuration=inst.get("configuration"),
                 )
                 bbox_cache[cache_key] = BoundingBox.from_api_response(bbox_data)
             except Exception as e:
@@ -218,7 +230,7 @@ async def check_assembly_interference(
         inst_doc_id = inst.get("documentId", document_id)
         inst_elem_id = inst.get("elementId")
         inst_part_id = inst.get("partId")
-        cache_key = (inst_doc_id, inst_elem_id, inst_part_id)
+        cache_key = (inst_doc_id, inst_elem_id, inst_part_id, inst.get("configuration"))
 
         if cache_key not in bbox_cache:
             continue
@@ -249,14 +261,10 @@ async def check_assembly_interference(
                         instance_a_id=inst_a["id"],
                         instance_b_name=inst_b.get("name", "Unknown"),
                         instance_b_id=inst_b["id"],
-                        overlap_x_inches=ox * METERS_TO_INCHES,
-                        overlap_y_inches=oy * METERS_TO_INCHES,
-                        overlap_z_inches=oz * METERS_TO_INCHES,
-                        overlap_volume_cubic_inches=(
-                            (ox * METERS_TO_INCHES)
-                            * (oy * METERS_TO_INCHES)
-                            * (oz * METERS_TO_INCHES)
-                        ),
+                        overlap_x=from_m(ox),
+                        overlap_y=from_m(oy),
+                        overlap_z=from_m(oz),
+                        overlap_volume=((from_m(ox)) * (from_m(oy)) * (from_m(oz))),
                     )
                 )
 
@@ -290,21 +298,23 @@ def format_interference_result(result: InterferenceResult) -> str:
         for i, ov in enumerate(result.overlaps, 1):
             lines.append(f'Overlap {i}: "{ov.instance_a_name}" and "{ov.instance_b_name}"')
             lines.append(
-                f'  Penetration: X={ov.overlap_x_inches:.3f}", '
-                f'Y={ov.overlap_y_inches:.3f}", '
-                f'Z={ov.overlap_z_inches:.3f}"'
+                f"  Penetration: X={ov.overlap_x:.3f} {get_length_unit()}, "
+                f"Y={ov.overlap_y:.3f} {get_length_unit()}, "
+                f"Z={ov.overlap_z:.3f} {get_length_unit()}"
             )
-            lines.append(f"  Overlap volume: {ov.overlap_volume_cubic_inches:.3f} cubic inches")
+            lines.append(f"  Overlap volume: {ov.overlap_volume:.3f} {volume_unit()}")
 
             # Suggest fix along axis with smallest overlap
-            min_val = min(ov.overlap_x_inches, ov.overlap_y_inches, ov.overlap_z_inches)
-            if min_val == ov.overlap_x_inches:
+            min_val = min(ov.overlap_x, ov.overlap_y, ov.overlap_z)
+            if min_val == ov.overlap_x:
                 axis = "X"
-            elif min_val == ov.overlap_y_inches:
+            elif min_val == ov.overlap_y:
                 axis = "Y"
             else:
                 axis = "Z"
-            lines.append(f'  Suggestion: Move one part {min_val:.3f}" along {axis} to resolve')
+            lines.append(
+                f"  Suggestion: Move one part {min_val:.3f} {get_length_unit()} along {axis} to resolve"
+            )
             lines.append("")
 
     lines.append("")

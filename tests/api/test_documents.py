@@ -430,7 +430,7 @@ class TestDocumentManager:
         assert "API Error" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_create_document_success(self, document_manager, onshape_client):
+    async def test_create_document_success(self, document_manager, onshape_client, monkeypatch):
         """Test creating a new document with minimal parameters."""
         create_response = {
             "id": "new_doc_123",
@@ -441,6 +441,7 @@ class TestDocumentManager:
             "public": False,
             "description": None,
         }
+        monkeypatch.delenv("ONSHAPE_DOCUMENTS_PUBLIC", raising=False)
         onshape_client.post = AsyncMock(return_value=create_response)
 
         doc = await document_manager.create_document(name="New Document")
@@ -454,8 +455,8 @@ class TestDocumentManager:
         onshape_client.post.assert_called_once()
         call_args = onshape_client.post.call_args
         assert "/api/v10/documents" in call_args[0][0]
-        # Defaults to public: free Onshape accounts get HTTP 409 for private documents
-        assert call_args[1]["data"]["isPublic"] is True
+        # Defaults to private (ONSHAPE_DOCUMENTS_PUBLIC unset)
+        assert call_args[1]["data"]["isPublic"] is False
         assert "description" not in call_args[1]["data"]
 
     @pytest.mark.asyncio

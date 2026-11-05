@@ -1,5 +1,6 @@
 """Thicken feature builder for Onshape."""
 
+from ..units import length_expr
 from typing import Any, Dict, Optional
 from enum import Enum
 
@@ -40,7 +41,7 @@ class ThickenBuilder:
         """Set the thickness for the thicken operation.
 
         Args:
-            thickness: Thickness value in inches
+            thickness: Thickness value in the configured length unit (default mm)
             variable_name: Optional variable name to use for thickness
 
         Returns:
@@ -90,7 +91,7 @@ class ThickenBuilder:
         if self.thickness_variable:
             thickness_expr = f"#{self.thickness_variable}"
         else:
-            thickness_expr = f"{self.thickness_value} in"
+            thickness_expr = length_expr(self.thickness_value)
 
         # Build the feature data. Must be wrapped in a BTFeatureDefinitionCall-1406
         # envelope like every other builder, otherwise Onshape rejects the POST with

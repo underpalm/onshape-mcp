@@ -3,6 +3,17 @@
 import pytest
 from unittest.mock import Mock, AsyncMock
 from onshape_mcp.api.client import OnshapeClient, OnshapeCredentials
+from onshape_mcp import units
+
+
+@pytest.fixture(autouse=True)
+def legacy_inch_units(request):
+    """Upstream tests were written for inches. Run them with the inch unit so
+    they keep verifying the conversion math; tests marked `metric` use mm."""
+    previous = units.get_length_unit()
+    units.set_length_unit("mm" if request.node.get_closest_marker("metric") else "in")
+    yield
+    units.set_length_unit(previous)
 
 
 @pytest.fixture

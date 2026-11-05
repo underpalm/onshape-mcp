@@ -274,16 +274,16 @@ class DocumentManager:
         return elements
 
     async def create_document(
-        self, name: str, description: Optional[str] = None, is_public: bool = True
+        self, name: str, description: Optional[str] = None, is_public: Optional[bool] = None
     ) -> DocumentInfo:
         """Create a new Onshape document.
 
         Args:
             name: Name for the new document
             description: Optional description
-            is_public: Whether the document should be public. Defaults to True
-                because free Onshape accounts can only create public documents
-                (a private request fails with HTTP 409).
+            is_public: Whether the document should be public. None uses the
+                ONSHAPE_DOCUMENTS_PUBLIC setting (default: private). Free Onshape
+                accounts can only create public documents (HTTP 409 otherwise).
 
         Returns:
             DocumentInfo for the created document
@@ -291,6 +291,10 @@ class DocumentManager:
         data: Dict[str, Any] = {"name": name}
         if description is not None:
             data["description"] = description
+        if is_public is None:
+            from ..units import documents_public_by_default
+
+            is_public = documents_public_by_default()
         data["isPublic"] = is_public
 
         response = await self.client.post("/api/v10/documents", data=data)
@@ -339,3 +343,78 @@ class DocumentManager:
             "workspaces": workspaces,
             "workspace_details": workspace_details,
         }
+
+    async def get_default_workspace_id(self, document_id: str) -> str:
+        """Return the ID of a document's default (usually "Main") workspace."""
+        response = await self.client.get(f"/api/documents/{document_id}")
+        workspace = response.get("defaultWorkspace") or {}
+        if not workspace.get("id"):
+            raise ValueError(f"Document {document_id} has no default workspace")
+        return workspace["id"]
+
+    async def copy_document(
+        self,
+        document_id: str,
+        workspace_id: Optional[str] = None,
+        new_name: Optional[str] = None,
+        is_public: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Copy a whole document (one workspace) into the current user's account.
+
+        Works for your own documents and for documents somebody shared with you or
+        published by link/publicly, as long as they allow copying (permission COPY
+        or link/anonymous access with export).
+
+        Returns:
+            Dict with ``newDocumentId`` and ``newWorkspaceId``.
+        """
+        if workspace_id is None:
+            workspace_id = await self.get_default_workspace_id(document_id)
+        if new_name is None:
+            source = await self.client.get(f"/api/documents/{document_id}")
+            new_name = f"{source.get('name', 'Document')} (Kopie)"
+        if is_public is None:
+            from ..units import documents_public_by_default
+
+            is_public = documents_public_by_default()
+
+        response = await self.client.post(
+            f"/api/documents/{document_id}/workspaces/{workspace_id}/copy",
+            data={"newName": new_name, "isPublic": is_public},
+        )
+        return {
+            "newDocumentId": response.get("newDocumentId"),
+            "newWorkspaceId": response.get("newWorkspaceId"),
+            "name": new_name,
+            "public": is_public,
+        }
+
+    async def copy_element(
+        self,
+        source_document_id: str,
+        source_element_id: str,
+        target_document_id: str,
+        target_workspace_id: str,
+        source_workspace_id: Optional[str] = None,
+        source_version_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Copy one element (Part Studio, Assembly, Variable Studio, ...) into a
+        workspace of one of your documents.
+
+        Exactly one of ``source_workspace_id`` / ``source_version_id`` should be
+        given; if neither is, the source document's default workspace is used.
+        """
+        data: Dict[str, Any] = {
+            "documentIdSource": source_document_id,
+            "elementIdSource": source_element_id,
+        }
+        if source_version_id:
+            data["versionIdSource"] = source_version_id
+        else:
+            data["workspaceIdSource"] = source_workspace_id or (
+                await self.get_default_workspace_id(source_document_id)
+            )
+        return await self.client.post(
+            f"/api/elements/copyelement/{target_document_id}/workspace/{target_workspace_id}",
+            data=data,
+        )
