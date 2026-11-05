@@ -34,3 +34,14 @@ See `knowledge_base/assembly_workflow_guide.md` for the full guide and `examples
 - `knowledge_base/assembly_workflow_guide.md` — Full assembly methodology
 - `knowledge_base/cad/cad_best_practices.md` — CAD design principles
 - `examples/cabinet_assembly.md` — Complete cabinet assembly walkthrough
+
+## Fork extensions (see docs/ERWEITERUNGEN.md)
+
+- `onshape_mcp/units.py` — configurable length unit (default mm); tool descriptions use `{LEN}`
+- `onshape_mcp/tools/` — extension tools (copy, parts, feature, physical, drawing, print, sim); registered via `tools/__init__.py`
+- `onshape_mcp/standard_content.py` — safe evaluator of Onshape standard-part rules (ISO/DIN sizes)
+- `onshape_mcp/builders/generic.py` — any Part Studio feature from `/featurespecs`
+- `onshape_mcp/api/drawings.py`, `api/transfer.py`, `exports.py` — drawings, export/import, local files
+- `onshape_mcp/sim/` — URDF → MJCF converter (re-rooting, physics config) and MuJoCo checks
+- Run tests with `env -u PYTHONPATH uv run pytest` (ROS on the dev machine breaks pytest otherwise)
+- Legacy upstream tests run in inches (autouse fixture); mark new tests `@pytest.mark.metric`

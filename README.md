@@ -1,405 +1,156 @@
-# Onshape MCP Server
+# Onshape MCP – CAD per Prompt
 
-Enhanced Model Context Protocol (MCP) server for programmatic CAD modeling with Onshape.
+Ein MCP-Server, mit dem man [Onshape](https://www.onshape.com) in natürlicher Sprache bedient –
+z. B. aus [Claude Code](https://claude.com/claude-code). Statt zu klicken sagt man
+*„Mach eine Platte 80 × 40 × 5 mm mit vier M3-Bohrungen“* oder
+*„Exportier die Baugruppe für MuJoCo“* – der Server setzt das über die Onshape-API um.
 
-## Features
+Ausgelegt auf deutsche Gewohnheiten: **Millimeter**, ISO/DIN-Normteile, Zeichnungen in
+**europäischer Projektion** mit Komma als Dezimaltrennzeichen.
 
-This MCP server provides comprehensive programmatic access to Onshape's REST API, enabling:
+> Fork von [hedless/onshape-mcp](https://github.com/hedless/onshape-mcp) (MIT), stark erweitert.
 
-### Core Capabilities (45 tools)
+## Was es kann
 
-- **Document Discovery** - Search and list projects, find Part Studios, navigate workspaces
-- **Parametric Sketches** - Rectangles, circles, lines, and arcs on standard planes
-- **Feature Management** - Extrude, revolve, thicken, fillet, chamfer, boolean, and pattern features
-- **Assembly Management** - Create assemblies, add instances, position parts, create mates (fastened, slider, revolute, cylindrical)
-- **Assembly Analysis** - Interference checking, position verification, face coordinate systems, body details
-- **Variable Tables** - Read and write Onshape variable tables for parametric designs
-- **FeatureScript** - Evaluate FeatureScript expressions, get bounding boxes
-- **Export** - Export Part Studios and Assemblies to STL, STEP, PARASOLID, GLTF, OBJ
-- **Part Studio Management** - Create and manage Part Studios programmatically
+| Bereich | Beispiele |
+|---|---|
+| **Modellieren** | Skizzen mit mehreren Formen (Rechteck, Kreis, Langloch, Polygon …) auf Ebenen oder beliebigen Flächen; Extrudieren, Drehen, Verrunden, Fasen, Muster, Boolesche Operationen; Zugriff auf **alle 97 Onshape-Features** (Schale, Spiegeln, Ebene, Helix, Sweep, Loft, Blech …) |
+| **Fremde Designs übernehmen** | Link prüfen (darf ich kopieren/exportieren?), Vollkopie mit Verlauf, oder Geometrie-Import, wenn nur Export erlaubt ist; lokale STEP/STL-Dateien importieren |
+| **Fertigteile** | 156 ISO/DIN-Normteile (Schrauben, Muttern, Scheiben, Stifte, Sicherungsringe …) in passender Größe einsetzen; Teile aus anderen Dokumenten (Servos, Motoren, Platinen) einfügen; Kaufteile markieren |
+| **Baugruppen** | Mates, starre Gruppen, Gelenke auf einer Achse ohne Verschieben (auch für importierte Modelle), Positionen, Kollisionsprüfung |
+| **Physik** | 189 Materialien (auch „Stahl“, „Aluminium“ …), eigene Dichte bzw. 3D-Druck-Infill; Masse, Schwerpunkt, Trägheit |
+| **Zeichnungen** | ISO-Zeichnung A4–A0 mit Normalansichten, automatische Bemaßung (Gesamtmaße, Bohrungen), Notizen; Export als PDF, DXF, DWG, SVG, PNG |
+| **3D-Druck** | STL in mm pro Teil, 3MF; ganze Baugruppen: nur Druckteile, mit Stückzahl, plus **Einkaufsliste** für Kaufteile; Prüfung gegen die Druckbettgröße |
+| **Simulation** | Baugruppe → **URDF** (ROS) und **MJCF** (MuJoCo) mit Massen, Trägheiten, Gelenken, Grenzen, Dämpfung, Reibung, Federn, Servos, Sensoren; kurzer Testlauf direkt aus dem Chat |
 
-## Installation
+Insgesamt 79 Tools – vollständige Liste in [docs/ERWEITERUNGEN.md](docs/ERWEITERUNGEN.md).
 
-### Prerequisites
+## Einrichtung
 
-- Python 3.10 or higher
-- Onshape account with API access
-- Onshape API keys (access key and secret key)
+**Voraussetzungen:** Linux/macOS/Windows, Python ≥ 3.10, [uv](https://docs.astral.sh/uv/),
+ein Onshape-Konto (kostenlos, Education oder bezahlt) und Claude Code.
 
-### Setup
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/hedless/onshape-mcp.git
+git clone https://github.com/<dein-name>/onshape-mcp.git
 cd onshape-mcp
+uv sync --extra sim          # ohne "--extra sim" nur CAD, ohne MuJoCo
+cp .env.example .env         # danach API-Schlüssel eintragen
 ```
 
-2. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+**API-Schlüssel** auf [dev-portal.onshape.com](https://dev-portal.onshape.com) → *API-Schlüssel*
+erstellen, Berechtigungen:
 
-3. Install dependencies:
-```bash
-pip install -e .
-```
+| Berechtigung | |
+|---|---|
+| Profilinformationen lesen | ✅ |
+| Dokumente lesen | ✅ |
+| Dokumente ändern | ✅ |
+| Dokumente löschen | ❌ (bewusst – Claude kann so nichts Wichtiges löschen) |
+| Käufe / Teilen | ❌ |
 
-4. Set up environment variables:
-```bash
-export ONSHAPE_ACCESS_KEY="your_access_key"
-export ONSHAPE_SECRET_KEY="your_secret_key"
-```
+Den Secret Key zeigt Onshape nur einmal – sofort in die `.env` kopieren.
 
-Or create a `.env` file:
-```
-ONSHAPE_ACCESS_KEY=your_access_key
-ONSHAPE_SECRET_KEY=your_secret_key
-```
-
-## Getting Onshape API Keys
-
-1. Go to [Onshape Developer Portal](https://dev-portal.onshape.com/)
-2. Sign in with your Onshape account
-3. Create a new API key
-4. Copy the Access Key and Secret Key
-
-## Usage
-
-### Running the Server
+**In Claude Code eintragen** (einmalig, gilt für alle Projekte):
 
 ```bash
-onshape-mcp
+claude mcp add onshape --scope user -- env -u PYTHONPATH "$PWD/.venv/bin/python" -m onshape_mcp.server
 ```
 
-Or directly with Python:
+Claude Code neu starten, `/mcp` zeigt „onshape: connected“. Test: *„Liste meine Onshape-Dokumente.“*
+
+> `env -u PYTHONPATH` verhindert Konflikte, wenn ROS installiert ist; ohne ROS schadet es nicht.
+
+### Einstellungen (`.env`)
+
+| Variable | Bedeutung | Standard |
+|---|---|---|
+| `ONSHAPE_ACCESS_KEY`, `ONSHAPE_SECRET_KEY` | API-Schlüssel | – |
+| `ONSHAPE_LENGTH_UNIT` | Längeneinheit aller Tools: `mm`, `cm`, `m`, `in` | `mm` |
+| `ONSHAPE_DOCUMENTS_PUBLIC` | neue Dokumente öffentlich (kostenloser Tarif: `true`) | `false` |
+| `ONSHAPE_EXPORT_DIR` | Ordner für Exporte | `~/onshape-exports` |
+| `ONSHAPE_MCP_CACHE` | Cache für Normteile/Materialien | `~/.cache/onshape-mcp` |
+
+## Benutzung
+
+Einfach in Claude Code schreiben, was in Onshape passieren soll. Am besten den Link des
+Dokuments aus der Browser-Adresszeile mitgeben und in kleinen Schritten arbeiten.
+
+```text
+Leg ein Dokument "Halterung" an und mach eine Platte 80 × 40 × 5 mm.
+Mach vier Durchgangsbohrungen Ø3,4 mm, je 6 mm vom Rand, und verrunde die Ecken mit 4 mm.
+Weise PLA mit 20 % Infill zu und sag mir das Gewicht.
+Mach eine bemaßte Zeichnung auf A4 und exportier sie als PDF.
+Exportier das Teil als STL für meinen Drucker (256 × 256 × 256 mm).
+```
+
+```text
+Prüf diesen Link: https://cad.onshape.com/documents/…  – darf ich das kopieren?
+Setz vier Zylinderkopfschrauben ISO 4762 M3 × 10 in die Baugruppe.
+Exportier die Baugruppe für MuJoCo, Basis ist "Grundplatte", und simulier 3 Sekunden.
+```
+
+Ausführliche Anleitung mit vielen Beispielen und Tipps: **[docs/ANLEITUNG.md](docs/ANLEITUNG.md)**.
+
+**Ergebnisse:** CAD und Zeichnungen bleiben in Onshape; Dateien (PDF, STL, 3MF, STEP,
+MuJoCo-Pakete) landen in `~/onshape-exports/`. Ein MuJoCo-Modell öffnet man mit
+`.venv/bin/python -m mujoco.viewer --mjcf=<datei>.xml`.
+
+## Bekannte Grenzen
+
+- Teile lassen sich per API nicht fixieren – bei der Simulation die Basis angeben.
+- Importierte Geometrie (STEP) hat keinen Feature-Verlauf und keine Mates; Gelenke und
+  Gelenkgrenzen müssen neu gesetzt werden.
+- Zeichnungsansichten können nicht verschoben werden; Bohrungspositionen und Gewinde werden
+  nicht automatisch bemaßt.
+- Bestehende Features können noch nicht geändert werden (nur neu anlegen/löschen).
+- Kugel-, Planar- und Zylindergelenke exportiert Onshape nicht als bewegliche URDF-Gelenke.
+
+Details und alle abgefangenen Onshape-Eigenheiten: [docs/ERWEITERUNGEN.md](docs/ERWEITERUNGEN.md).
+
+## Entwicklung
+
 ```bash
-python -m onshape_mcp.server
+env -u PYTHONPATH uv run pytest              # 622 Tests
+env -u PYTHONPATH uv run ruff check onshape_mcp
+env -u PYTHONPATH uv run ruff format onshape_mcp
 ```
 
-### Configuring with Claude Code
+Neue Tools gehören nach `onshape_mcp/tools/` (registriert in `tools/__init__.py`), damit
+`server.py` nah am Original bleibt und Updates leicht zu übernehmen sind:
 
-Add to your `~/.claude/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "onshape": {
-      "command": "/absolute/path/to/onshape-mcp/venv/bin/python",
-      "args": ["-m", "onshape_mcp.server"],
-      "env": {
-        "ONSHAPE_ACCESS_KEY": "your_access_key_here",
-        "ONSHAPE_SECRET_KEY": "your_secret_key_here"
-      }
-    }
-  }
-}
+```bash
+git remote add upstream https://github.com/hedless/onshape-mcp.git   # einmalig
+git fetch upstream && git merge upstream/main
 ```
 
-**Important Notes:**
-- Use the **absolute path** to your virtual environment's Python executable
-- Find your path: `cd onshape-mcp && pwd` to get the directory path
-- On Windows: Use `C:/path/to/onshape-mcp/venv/Scripts/python.exe`
-- Replace the API keys with your actual keys from [Onshape Developer Portal](https://dev-portal.onshape.com/)
-- **Restart Claude Code** after editing `mcp.json`
-
-**Verify it works:**
-Ask Claude Code: "Can you list my Onshape documents?"
-
-For complete setup instructions, see [docs/QUICK_START.md](docs/QUICK_START.md).
-
-## Available Tools
-
-### Document & Navigation Tools
-
-| Tool | Description |
-|------|-------------|
-| `list_documents` | List documents with filtering and sorting |
-| `search_documents` | Search documents by name or description |
-| `get_document` | Get detailed document information |
-| `get_document_summary` | Get comprehensive summary with workspaces and elements |
-| `find_part_studios` | Find Part Studios with optional name filtering |
-| `get_elements` | Get all elements (Part Studios, Assemblies, BOMs) in a workspace |
-| `get_parts` | Get all parts from a Part Studio |
-| `create_document` | Create a new Onshape document |
-| `create_part_studio` | Create a new Part Studio in a document |
-
-### Assembly Tools
-
-| Tool | Description |
-|------|-------------|
-| `create_assembly` | Create a new Assembly in a document |
-| `add_assembly_instance` | Add a part or sub-assembly instance to an assembly |
-| `get_assembly` | Get assembly structure with instances and occurrences |
-| `transform_instance` | Apply a relative transform (inches/degrees). Fails on fixed instances. |
-| `set_instance_position` | Set absolute position (resets rotation). Fails on fixed instances. |
-| `align_instance_to_face` | Align one instance flush against a face of another |
-| `create_mate_connector` | Create an explicit mate connector on a face with offsets |
-| `create_fastened_mate` | Create a rigid (fastened) mate between two instances |
-| `create_slider_mate` | Create a linear motion mate. First instance slides relative to second. |
-| `create_revolute_mate` | Create a rotational mate. First instance rotates relative to second. |
-| `create_cylindrical_mate` | Create a slide+rotate mate. First instance moves relative to second. |
-| `delete_feature` | Delete a feature (mate, mate connector, etc.) from an assembly or Part Studio |
-
-### Assembly Analysis Tools
-
-| Tool | Description |
-|------|-------------|
-| `get_assembly_positions` | Get positions, sizes, and bounds of all instances (in inches) |
-| `get_assembly_features` | Get all features with their state (OK/ERROR/SUPPRESSED) |
-| `get_body_details` | Get face IDs, surface types, normals, and origins for all parts |
-| `get_face_coordinate_system` | Query the outward-facing coordinate system for a specific face |
-| `check_assembly_interference` | Check for overlapping/interfering parts using bounding box detection |
-
-### Sketch Tools
-
-| Tool | Description |
-|------|-------------|
-| `create_sketch_rectangle` | Rectangle with optional variable references for width/height |
-| `create_sketch_circle` | Circle with center point and radius |
-| `create_sketch_line` | Line from start point to end point |
-| `create_sketch_arc` | Arc with center, radius, start angle, and end angle |
-
-All sketch tools support `plane` (Front/Top/Right) and `name` parameters. Dimensions are in inches.
-
-### Feature Tools
-
-| Tool | Description |
-|------|-------------|
-| `create_extrude` | Extrude a sketch with depth, optional variable reference, and operation type |
-| `create_thicken` | Thicken a sketch into a solid with optional midplane/opposite direction |
-| `create_revolve` | Revolve a sketch around an axis (X/Y/Z) with angle and operation type |
-| `create_fillet` | Round edges by edge IDs with radius (supports variable references) |
-| `create_chamfer` | Bevel edges by edge IDs with distance (supports variable references) |
-| `create_linear_pattern` | Repeat features along an axis (X/Y/Z) with distance and count |
-| `create_circular_pattern` | Repeat features around an axis with count and angle spread |
-| `create_boolean` | Union, subtract, or intersect bodies by deterministic IDs |
-
-### Variable & Feature Tools
-
-| Tool | Description |
-|------|-------------|
-| `get_variables` | Get all variables from a Part Studio variable table |
-| `set_variable` | Set or update a variable (e.g., `"0.75 in"`) |
-| `get_features` | Get all features from a Part Studio |
-
-### FeatureScript Tools
-
-| Tool | Description |
-|------|-------------|
-| `eval_featurescript` | Evaluate a FeatureScript lambda expression (read-only) |
-| `get_bounding_box` | Get the tight bounding box of all parts in a Part Studio |
-
-### Export Tools
-
-| Tool | Description |
-|------|-------------|
-| `export_part_studio` | Export to STL, STEP, PARASOLID, GLTF, or OBJ (optional `partId` filter) |
-| `export_assembly` | Export to STL, STEP, or GLTF |
-
-## Architecture
+### Aufbau
 
 ```
 onshape_mcp/
-├── api/
-│   ├── client.py         # HTTP client with HMAC authentication
-│   ├── documents.py      # Document discovery & navigation
-│   ├── partstudio.py     # Part Studio management
-│   ├── variables.py      # Variable table management
-│   ├── assemblies.py     # Assembly lifecycle, mates & features
-│   ├── export.py         # Part Studio & Assembly export
-│   └── featurescript.py  # FeatureScript evaluation
-├── builders/
-│   ├── sketch.py         # Sketch builder (rectangle, circle, line, arc, polygon)
-│   ├── extrude.py        # Extrude feature builder
-│   ├── revolve.py        # Revolve feature builder
-│   ├── fillet.py         # Fillet feature builder
-│   ├── chamfer.py        # Chamfer feature builder
-│   ├── boolean.py        # Boolean operations (union, subtract, intersect)
-│   ├── pattern.py        # Linear & circular pattern builders
-│   ├── mate.py           # Mate connector & mate builders (face-based)
-│   └── thicken.py        # Thicken feature builder
-├── analysis/
-│   ├── interference.py   # Bounding-box interference detection
-│   ├── positioning.py    # Instance position queries & alignment
-│   └── face_cs.py        # Face coordinate system queries
-├── tools/
-│   └── __init__.py       # MCP tool definitions
-└── server.py             # Main MCP server (45 tools)
+├── server.py              # MCP-Server, Original-Tools
+├── units.py               # Einheiten (Standard mm)
+├── exports.py             # lokale Export-Dateien
+├── standard_content.py    # ISO/DIN-Normteile (sichere Auswertung der Onshape-Regeln)
+├── api/                   # Onshape-REST-Zugriff (Client, Dokumente, Transfer, Zeichnungen …)
+├── builders/              # Feature-JSON (Skizze, Extrude, Mate …, generic.py = alle Features)
+├── analysis/              # Positionen, Kollisionen, Flächen-Koordinatensysteme
+├── sim/                   # URDF → MJCF-Konverter, MuJoCo-Prüfung
+└── tools/                 # Erweiterungs-Tools (Kopieren, Teile, Features, Physik,
+                           #   Zeichnungen, Druck, Simulation, Baugruppen)
+tests/                     # pytest
+docs/                      # ANLEITUNG.md, ERWEITERUNGEN.md, Original-Dokumentation
 ```
 
-## Examples
+Weitere Dokumentation aus dem Original-Projekt: [docs/QUICK_START.md](docs/QUICK_START.md),
+[docs/DEV_SETUP.md](docs/DEV_SETUP.md), [docs/TESTING.md](docs/TESTING.md),
+[knowledge_base/assembly_workflow_guide.md](knowledge_base/assembly_workflow_guide.md).
 
-### Example 1: Finding and Working on a Project
+## Lizenz und Dank
 
-```python
-# Search for your project
-documents = await search_documents(query="robot arm", limit=5)
+MIT-Lizenz, wie das Original-Projekt.
 
-# Get the first matching document
-doc_id = documents[0].id
+- Basis: [hedless/onshape-mcp](https://github.com/hedless/onshape-mcp)
+- [Model Context Protocol](https://modelcontextprotocol.io/), [Onshape-API-Dokumentation](https://onshape-public.github.io/docs/), [MuJoCo](https://mujoco.org/)
+- Getestet u. a. mit LeLamp (Human Computer Lab)
 
-# Get comprehensive summary
-summary = await get_document_summary(doc_id)
-
-# Find Part Studios in main workspace
-workspace_id = summary['workspaces'][0].id
-part_studios = await find_part_studios(doc_id, workspace_id, namePattern="base")
-
-# Now work with the Part Studio
-elem_id = part_studios[0].id
-```
-
-### Example 2: Creating a Parametric Cabinet
-
-```python
-# Set variables
-await set_variable(doc_id, ws_id, elem_id, "width", "39.5 in")
-await set_variable(doc_id, ws_id, elem_id, "depth", "16 in")
-await set_variable(doc_id, ws_id, elem_id, "height", "67.125 in")
-await set_variable(doc_id, ws_id, elem_id, "wall_thickness", "0.75 in")
-
-# Create side panel sketch
-await create_sketch_rectangle(
-    doc_id, ws_id, elem_id,
-    name="Side Panel",
-    plane="Front",
-    corner1=[0, 0],
-    corner2=[16, 67.125],
-    variableWidth="depth",
-    variableHeight="height"
-)
-
-# Extrude to create side
-await create_extrude(
-    doc_id, ws_id, elem_id,
-    name="Side Extrude",
-    sketchFeatureId="<sketch_id>",
-    depth=0.75,
-    variableDepth="wall_thickness"
-)
-```
-
-## Development
-
-### Running Tests
-
-The project has comprehensive test coverage with **471 unit tests**.
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov
-
-# Run specific module tests
-pytest tests/api/test_documents.py -v
-
-# Use make commands
-make test
-make test-cov
-make coverage-html
-```
-
-For detailed testing documentation, see [docs/TESTING.md](docs/TESTING.md).
-
-### Code Formatting
-
-```bash
-ruff format .
-ruff check .
-```
-
-## Documentation
-
-### Getting Started
-- **[docs/QUICK_START.md](docs/QUICK_START.md)** - Quick start guide for Claude Code users
-- **[docs/DEV_SETUP.md](docs/DEV_SETUP.md)** - Development environment setup with SSE mode and debugging
-
-### Development & Testing
-- **[docs/TESTING.md](docs/TESTING.md)** - Testing guide and best practices
-- **[docs/TEST_SUMMARY.md](docs/TEST_SUMMARY.md)** - Test suite overview
-- **[docs/FEATURE_SUMMARY.md](docs/FEATURE_SUMMARY.md)** - Implementation details and statistics
-
-### API & Implementation
-- **[docs/ONSHAPE_API_IMPROVEMENTS.md](docs/ONSHAPE_API_IMPROVEMENTS.md)** - API format fixes and BTMSketch-151 implementation
-- **[docs/SKETCH_PLANE_REFERENCE_GUIDE.md](docs/SKETCH_PLANE_REFERENCE_GUIDE.md)** - Advanced: Geometry-referenced sketch planes
-- **[docs/NEXT_STEPS_GEOMETRY_REFERENCES.md](docs/NEXT_STEPS_GEOMETRY_REFERENCES.md)** - Roadmap for geometry reference implementation
-- **[docs/DOCUMENT_DISCOVERY.md](docs/DOCUMENT_DISCOVERY.md)** - Complete guide to document discovery features
-- **[docs/PARTS_ASSEMBLY_TOOLS.md](docs/PARTS_ASSEMBLY_TOOLS.md)** - Parts and assembly tool documentation
-
-### Project Analysis & Research
-- **[docs/CARPENTRY_PRINCIPLES_FOR_CAD.md](docs/CARPENTRY_PRINCIPLES_FOR_CAD.md)** - How to think like a carpenter in CAD
-- **[docs/LEARNING_SUMMARY.md](docs/LEARNING_SUMMARY.md)** - Summary of side panel analysis and learnings
-- **[docs/DISPLAY_CABINETS_ANALYSIS_SUMMARY.md](docs/DISPLAY_CABINETS_ANALYSIS_SUMMARY.md)** - Analysis of display cabinets project
-- **[docs/AGENT_CREATION_GUIDE.md](docs/AGENT_CREATION_GUIDE.md)** - Guide for creating CAD agents
-- **[docs/CREATING_CAD_EXPERT_AGENT.md](docs/CREATING_CAD_EXPERT_AGENT.md)** - Creating specialized CAD expert agents
-
-### Knowledge Base & Examples
-
-- **[knowledge_base/assembly_workflow_guide.md](knowledge_base/assembly_workflow_guide.md)** - Comprehensive assembly methodology (positioning, mates, solver behavior)
-- **[examples/cabinet_assembly.md](examples/cabinet_assembly.md)** - Complete worked example: cabinet with sliding drawers
-- **[knowledge_base/](knowledge_base/)** - Onshape feature examples and research
-
-## Roadmap
-
-### Current Status
-
-- Document discovery and navigation (10 tools)
-- Sketch creation with rectangles, circles, lines, and arcs
-- Feature tools: extrude, revolve, thicken, fillet, chamfer, boolean, patterns
-- Full assembly management: fastened, slider, revolute, and cylindrical mates with face-based mate connectors
-- Assembly analysis: interference checking, position verification, face coordinate systems
-- Variable table management
-- FeatureScript evaluation and bounding box queries
-- Export to STL, STEP, PARASOLID, GLTF, OBJ
-- 471 comprehensive unit tests
-- Live-tested on multi-part assemblies (25-instance cabinet with 66 features)
-
-### In Research
-
-- **Geometry-referenced sketch planes** - Create sketches on faces from existing features (see [docs/SKETCH_PLANE_REFERENCE_GUIDE.md](docs/SKETCH_PLANE_REFERENCE_GUIDE.md))
-- Query API investigation - How to programmatically reference geometry
-- Entity ID mapping - Understanding Onshape's internal ID system
-
-### Near-Term Priorities
-
-- [ ] Implement `create_sketch_on_geometry()` for carpentry-correct cabinet assembly
-- [ ] Sketch constraints (coincident, parallel, tangent, etc.)
-- [ ] Pocket cuts and profiles for joinery (dados, rabbets)
-
-### Long-Term Goals
-
-- [ ] Drawing creation
-- [ ] Bill of Materials (BOM) generation
-- [ ] Advanced constraints and relations
-- [ ] Configuration parameter support
-
-### Woodworking-Specific Features
-
-- [ ] Joinery library (dado, rabbet, mortise & tenon, dovetail)
-- [ ] Standard hardware patterns (shelf pins, drawer slides)
-- [ ] Cut list generation
-- [ ] Material optimization (sheet layout)
-- [ ] Assembly instructions generation
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-MIT License
-
-## Acknowledgments
-
-- Inspired by [OnPy](https://github.com/kyle-tennison/onpy)
-- Built on the [Model Context Protocol](https://modelcontextprotocol.io/)
-- Onshape API documentation: https://onshape-public.github.io/docs/
-
-## Support
-
-For issues and questions:
-- GitHub Issues: https://github.com/hedless/onshape-mcp/issues
-- Onshape API Forum: https://forum.onshape.com/
+Beim Kopieren und Ändern fremder Designs gilt deren eigene Lizenz.
