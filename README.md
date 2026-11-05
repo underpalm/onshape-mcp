@@ -31,7 +31,7 @@ Insgesamt 79 Tools – vollständige Liste in [docs/ERWEITERUNGEN.md](docs/ERWEI
 ein Onshape-Konto (kostenlos, Education oder bezahlt) und Claude Code.
 
 ```bash
-git clone https://github.com/<dein-name>/onshape-mcp.git
+git clone https://github.com/underpalm/onshape-mcp.git
 cd onshape-mcp
 uv sync --extra sim          # ohne "--extra sim" nur CAD, ohne MuJoCo
 cp .env.example .env         # danach API-Schlüssel eintragen
